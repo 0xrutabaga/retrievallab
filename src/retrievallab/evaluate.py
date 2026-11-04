@@ -31,7 +31,7 @@ from retrievallab.metrics import (
     recall_at_k,
 )
 from retrievallab.qrels import Query, load_queries, passage_index, validate_queries
-from retrievallab.retrievers import DEFAULT_METHODS, Retriever, make_retriever
+from retrievallab.retrievers import DEFAULT_METHODS, METHODS, Retriever, make_retriever
 from retrievallab.sections import Section
 
 MetricFn = Callable[[Sequence[str], Mapping[str, int]], float]
@@ -179,7 +179,8 @@ def run_eval(config: EvalConfig) -> EvalResult:
     passages = passage_index(docs)
     validate_queries(queries, passages)
     for method in config.methods:
-        make_retriever(method)  # fail fast on an unknown or unavailable method
+        if method not in METHODS:  # fail before any indexing work
+            raise ValueError(f"unknown method {method!r}; choose from {', '.join(METHODS)}")
     if config.depth < 10:
         raise ValueError("depth must be at least 10 so that @10 metrics are defined")
 
