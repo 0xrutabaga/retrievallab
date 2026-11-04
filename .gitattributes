@@ -1,0 +1,6 @@
+# Corpus files are verified by SHA-256; never let git rewrite their bytes.
+data/corpus/*.txt -text
+tests/fixtures/corpus/*.txt -text
+# Generated reports must be byte-identical on every platform.
+reports/* text eol=lf
+* text=auto eol=lf
