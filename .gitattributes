@@ -1,6 +1,5 @@
-# Corpus files are verified by SHA-256; never let git rewrite their bytes.
+# Default: normalise text to LF. Later lines override earlier ones, so exceptions follow.
+* text=auto eol=lf
+# Corpus files are verified by SHA-256; git must never rewrite their bytes.
 data/corpus/*.txt -text
 tests/fixtures/corpus/*.txt -text
-# Generated reports must be byte-identical on every platform.
-reports/* text eol=lf
-* text=auto eol=lf
