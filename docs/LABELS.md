@@ -51,6 +51,7 @@ Pass 2 raised every run's numbers slightly and changed no conclusion. To reprodu
 numbers:
 
 ```bash
+mkdir -p reports/tmp
 git show 8815782:data/queries.jsonl > reports/tmp/queries-pass1.jsonl
 uv run retrievallab eval --queries reports/tmp/queries-pass1.jsonl --out reports/tmp
 ```
