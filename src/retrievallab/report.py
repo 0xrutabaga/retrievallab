@@ -57,6 +57,8 @@ def to_json(result: EvalResult) -> dict[str, Any]:
                 "method": run.method,
                 "chunker": run.chunker,
                 "chunks_indexed": run.n_chunks,
+                "reachable_labels": run.reachable_labels,
+                "recall_ceiling": _r(run.recall_ceiling),
                 "summary": {name: _interval(iv) for name, iv in run.summary.items()},
                 "per_query": {
                     qid: {
@@ -75,6 +77,9 @@ def to_json(result: EvalResult) -> dict[str, Any]:
                 "metric": c.metric,
                 "delta": _interval(c.delta),
                 "verdict": c.verdict,
+                "p_value": _r(c.p_value),
+                "p_holm": _r(c.p_holm),
+                "holm_verdict": c.holm_verdict,
             }
             for c in result.comparisons
         ],
@@ -85,6 +90,10 @@ def _fmt(iv: Interval) -> str:
     return f"{iv.mean:.3f} [{iv.low:.3f}, {iv.high:.3f}]"
 
 
+def _p(p: float) -> str:
+    return "<0.0001" if p < 0.0001 else f"{p:.4f}"
+
+
 def _signed(iv: Interval) -> str:
     return f"{iv.mean:+.3f} [{iv.low:+.3f}, {iv.high:+.3f}]"
 
@@ -92,13 +101,14 @@ def _signed(iv: Interval) -> str:
 def results_table(result: EvalResult) -> str:
     """The summary table quoted in the README."""
     lines = [
-        "| Run | Chunks | nDCG@10 | MRR@10 | Recall@10 | Recall@5 | P@5 |",
-        "| --- | ---: | --- | --- | --- | ---: | ---: |",
+        "| Run | Chunks | Reachable labels | nDCG@10 | MRR@10 | Recall@10 | Recall@5 | P@5 |",
+        "| --- | ---: | ---: | --- | --- | --- | ---: | ---: |",
     ]
     for run in result.runs:
         s = run.summary
         lines.append(
-            f"| {run.run_id} | {run.n_chunks} | {_fmt(s['ndcg@10'])} | {_fmt(s['mrr@10'])} "
+            f"| {run.run_id} | {run.n_chunks} | {run.reachable_labels}/{result.n_labels} "
+            f"| {_fmt(s['ndcg@10'])} | {_fmt(s['mrr@10'])} "
             f"| {_fmt(s['recall@10'])} | {s['recall@5'].mean:.3f} | {s['precision@5'].mean:.3f} |"
         )
     return "\n".join(lines)
@@ -106,11 +116,16 @@ def results_table(result: EvalResult) -> str:
 
 def comparison_table(result: EvalResult) -> str:
     lines = [
-        "| Run vs " + result.config.baseline + " | Metric | Difference [95% CI] | Verdict |",
-        "| --- | --- | --- | --- |",
+        "| Run vs "
+        + result.config.baseline
+        + " | Metric | Difference [95% CI] | Verdict (CI) | Holm p | Verdict (Holm) |",
+        "| --- | --- | --- | --- | ---: | --- |",
     ]
     for c in result.comparisons:
-        lines.append(f"| {c.run_id} | {c.metric} | {_signed(c.delta)} | {c.verdict} |")
+        lines.append(
+            f"| {c.run_id} | {c.metric} | {_signed(c.delta)} | {c.verdict} "
+            f"| {_p(c.p_holm)} | {c.holm_verdict} |"
+        )
     return "\n".join(lines)
 
 
@@ -139,16 +154,19 @@ def to_markdown(result: EvalResult) -> str:
         "",
         "## Results",
         "",
-        f"Mean over queries with {pct}% confidence interval.",
+        f'Mean over queries with {pct}% confidence interval. "Reachable labels" counts labels '
+        "whose passage at least one indexed chunk is credited to; an unreachable label can never "
+        "be retrieved by that chunker.",
         "",
         results_table(result),
         "",
         "## Comparisons with the baseline",
         "",
         f"Paired bootstrap of the per-query difference (run minus `{cfg.baseline}`). "
-        '"better" or "worse" only when the interval excludes zero. These are '
-        f"{len(result.comparisons)} comparisons on one query set with no multiple-comparison "
-        "correction, so treat a borderline interval as weak evidence.",
+        '"Verdict (CI)" says "better" or "worse" when the uncorrected interval excludes zero. '
+        f"There are {len(result.comparisons)} comparisons on one query set, so "
+        '"Verdict (Holm)" applies the Holm-Bonferroni correction to two-sided bootstrap '
+        f"p-values at alpha = {1 - cfg.confidence:.2f}; rely on that column.",
         "",
         comparison_table(result),
         "",
@@ -164,6 +182,11 @@ def to_markdown(result: EvalResult) -> str:
         "- MRR@10: reciprocal rank of the first relevant passage in the top 10, else 0.",
         "- Recall@k: share of labelled passages in the top k. P@5: relevant passages in the top 5"
         " divided by 5.",
+        "- Grades: only nDCG@10 uses them. MRR, Recall and P@5 count a grade-1 (partial) label "
+        "exactly like a grade-2 (direct answer) label.",
+        "- Passages: a section chunk is credited to its section; a fixed window to every section "
+        "it overlaps by at least 100 characters or contains completely. Each credited passage "
+        "takes its own rank.",
         f"- Reported metrics: {', '.join(METRICS)}; compared metrics: "
         f"{', '.join(COMPARED_METRICS)}.",
         "",

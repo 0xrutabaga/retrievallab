@@ -11,6 +11,7 @@ from retrievallab.metrics import (
     Interval,
     bootstrap_ci,
     dcg,
+    holm_adjust,
     mrr_at_k,
     ndcg_at_k,
     paired_bootstrap_ci,
@@ -142,3 +143,20 @@ def test_bootstrap_rejects_bad_input() -> None:
         paired_bootstrap_ci([1.0], [1.0, 2.0])
     with pytest.raises(ValueError):
         Bootstrap(3, n_resamples=10).interval([1.0])
+
+
+def test_holm_adjust_hand_computed() -> None:
+    # Sorted: 0.005*4 = 0.02, 0.01*3 = 0.03, 0.03*2 = 0.06, 0.04*1 = 0.04 -> running max 0.06.
+    assert holm_adjust([0.01, 0.04, 0.03, 0.005]) == pytest.approx([0.03, 0.06, 0.06, 0.02])
+    assert holm_adjust([0.5, 0.9]) == pytest.approx([1.0, 1.0])  # capped at 1
+    assert holm_adjust([]) == []
+
+
+def test_bootstrap_p_value() -> None:
+    boot = Bootstrap(10, n_resamples=1000)
+    assert boot.p_value([0.1] * 10) == 0.0  # every resampled mean is positive
+    assert boot.p_value([0.0] * 10) == 1.0  # every mean is exactly zero
+    mixed = boot.p_value([1.0, -1.0] * 5)
+    assert 0.5 < mixed <= 1.0
+    with pytest.raises(ValueError):
+        boot.p_value([1.0])

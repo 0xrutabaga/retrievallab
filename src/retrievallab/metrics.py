@@ -112,6 +112,20 @@ class Bootstrap:
         alpha = 1.0 - self.confidence
         return Interval(sum(values) / n, quantile(means, alpha / 2), quantile(means, 1 - alpha / 2))
 
+    def p_value(self, values: Sequence[float]) -> float:
+        """Two-sided bootstrap p-value for "the mean of ``values`` is zero".
+
+        Twice the smaller share of resampled means on either side of zero, capped at 1; the
+        resolution is ``1 / n_resamples``. Used with paired differences for Holm's correction.
+        """
+        if len(values) != self.n_items:
+            raise ValueError(f"expected {self.n_items} values, got {len(values)}")
+        n = self.n_items
+        means = [sum(values[i] for i in sample) / n for sample in self._samples]
+        low = sum(1 for m in means if m <= 0.0) / len(means)
+        high = sum(1 for m in means if m >= 0.0) / len(means)
+        return min(1.0, 2.0 * min(low, high))
+
     def paired(self, a: Sequence[float], b: Sequence[float]) -> Interval:
         """Interval for mean(a - b) where a[i] and b[i] are two methods' scores on query i.
 
@@ -121,6 +135,23 @@ class Bootstrap:
         if len(a) != len(b):
             raise ValueError("paired samples must have the same length")
         return self.interval([x - y for x, y in zip(a, b, strict=True)])
+
+
+def holm_adjust(p_values: Sequence[float]) -> list[float]:
+    """Holm-Bonferroni adjusted p-values, in the input order.
+
+    Sorted ascending, the i-th smallest (0-based) of m p-values is multiplied by (m - i), then a
+    running maximum keeps the adjusted values monotone; results are capped at 1. Rejecting
+    where the adjusted value is <= alpha controls the family-wise error rate at alpha.
+    """
+    m = len(p_values)
+    order = sorted(range(m), key=lambda i: (p_values[i], i))
+    adjusted = [0.0] * m
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * p_values[i]))
+        adjusted[i] = running
+    return adjusted
 
 
 def bootstrap_ci(

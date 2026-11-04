@@ -43,18 +43,26 @@ reported. That is not done.
 
 ## 3. "Chunks are retrieved but passages are scored. Doesn't that favour big chunks?"
 
-It can, and the mapping is explicit so the effect can be reasoned about.
-`evaluate.py::evaluate_run` retrieves the top 100 chunks, `evaluate.py::ranked_passages`
-maps each to `Chunk.passage_id` and keeps the first occurrence. For `SectionChunker` a chunk
-lies inside one section by construction (tested in
-`tests/test_chunking.py::test_section_chunks_never_cross_sections`). For `FixedSizeChunker` a
-chunk is credited to the single section it overlaps most (`sections.py::section_at`), not to
-every section it touches, so a large window cannot collect credit for several passages at once.
-Two remaining biases: a long section is "found" if any of its chunks ranks, and a window
-straddling a short answer section may be credited to its longer neighbour. Fixed windows of
-1000 characters lose Recall@10 against section chunks (-0.079 [-0.134, -0.028] for BM25), which
-is consistent with the second effect. The alternative, labelling character spans and scoring
-overlap, would remove both biases at the cost of much more labelling work.
+It can, in both directions, and the first version got it wrong. `evaluate.py::evaluate_run`
+retrieves the top 100 chunks and `evaluate.py::ranked_passages` expands each into
+`Chunk.passage_ids`, keeping the first occurrence of each passage. For `SectionChunker` a
+chunk lies inside one section by construction
+(`tests/test_chunking.py::test_section_chunks_never_cross_sections`).
+
+Originally a fixed window was credited only to the section it overlapped most
+(`sections.py::section_at`). That stopped big windows collecting several passages, but an
+independent review found the opposite bias: 13 labelled sections shorter than about half a
+window could never be credited to any window, so fixed runs had a recall ceiling below 1 and the
+"fixed loses Recall@10" verdict (-0.079) was mostly that artifact. Now
+`sections.py::credited_sections` credits a window with every section it covers at least 100
+characters of, or contains completely. To keep it fair to section chunks, each credited passage
+takes its own rank, so a window credited to three sections uses three of the ten slots. The
+report prints reachable labels per run (152/152 for both defaults), and
+`tests/test_eval_e2e.py::test_every_labelled_passage_is_reachable` fails if a chunker setting
+makes any label unreachable. BM25's fixed-versus-section Recall@10 difference is now -0.050
+[-0.112, +0.007], not significant. What remains: a long section is "found" if any of its chunks
+ranks, and the 100-character threshold is a judgement call. Labelling character spans and
+scoring overlap would remove both, at the cost of much more labelling work.
 
 ## 4. "How do I know the table in the README is what the code produces?"
 
@@ -103,8 +111,11 @@ tie-breaking by index position, and re-indexing replacing the old index.
 - **No stemming.** Adding a stemmer would probably help lexical recall here, and would be a new
   run compared with a paired interval, not a silent change to `text.py`.
 - **Multiple comparisons.** Fifteen comparisons at 95% means close to one false "significant"
-  verdict is expected by chance. The borderline MRR result for hybrid is exactly the kind of
-  finding that should not be acted on.
+  verdict is expected by chance, so the report adds Holm-adjusted verdicts
+  (`metrics.py::holm_adjust`). The uncorrected "worse" for hybrid's MRR@10 does not survive it
+  (adjusted p = 0.36).
+- **Grades.** Only nDCG@10 uses the 1/2 grades; MRR, Recall and P@5 treat a partial answer as
+  a full one. A grade-2-only recall would be a cheap addition.
 
 ## Live demo (about five minutes)
 

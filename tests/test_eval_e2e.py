@@ -8,8 +8,18 @@ from pathlib import Path
 import pytest
 from conftest import FIXTURES, REAL_CORPUS, REAL_QUERIES, ROOT
 
+from retrievallab.chunking import chunk_corpus, make_chunker
 from retrievallab.cli import main
-from retrievallab.evaluate import EvalConfig, ranked_passages, run_eval
+from retrievallab.corpus import Document
+from retrievallab.evaluate import (
+    EvalConfig,
+    boilerplate_ids,
+    indexable_chunks,
+    ranked_passages,
+    reachable_passages,
+    run_eval,
+)
+from retrievallab.qrels import load_queries, passage_index
 from retrievallab.report import results_table, to_markdown, write_reports
 
 FX = str(FIXTURES / "corpus")
@@ -161,3 +171,36 @@ def test_committed_report_matches_regeneration(monkeypatch: pytest.MonkeyPatch) 
     assert to_markdown(result) == committed
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert results_table(result) in readme, "README results table is stale; rerun the eval"
+
+
+@pytest.mark.parametrize("spec", ["section", "fixed", "section:800", "fixed:500:100"])
+def test_every_labelled_passage_is_reachable(real_docs: list[Document], spec: str) -> None:
+    """No chunker may make a labelled passage impossible to retrieve."""
+    passages = passage_index(real_docs)
+    skip = boilerplate_ids(passages, include_boilerplate=False)
+    chunks = indexable_chunks(chunk_corpus(real_docs, make_chunker(spec)), passages, False)
+    reachable = reachable_passages(chunks, skip)
+    labelled = {pid for q in load_queries(REAL_QUERIES) for pid in q.relevant}
+    assert labelled - reachable == set()
+
+
+def test_report_states_reachability_and_holm() -> None:
+    result = run_eval(FIXTURE_CONFIG)
+    assert all(r.reachable_labels == result.n_labels for r in result.runs)
+    assert all(r.recall_ceiling == 1.0 for r in result.runs)
+    md = to_markdown(result)
+    assert "| Reachable labels |" in md and "Verdict (Holm)" in md
+    assert "count a grade-1 (partial) label exactly like a grade-2" in md
+    for c in result.comparisons:
+        assert c.p_holm >= c.p_value
+        if c.holm_verdict != "no significant difference":
+            assert c.verdict == c.holm_verdict
+
+
+def test_ranked_passages_expands_multi_section_chunks() -> None:
+    from retrievallab.chunking import Chunk
+
+    window = Chunk("w", "d", 0, 9, "", "2", "", credited=("2", "3"))
+    other = Chunk("o", "d", 9, 12, "", "3", "", credited=("3", "toc"))
+    assert ranked_passages([window, other]) == ["d#2", "d#3", "d#toc"]
+    assert ranked_passages([window, other], frozenset({"d#toc"})) == ["d#2", "d#3"]
