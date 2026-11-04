@@ -123,3 +123,31 @@ def section_at(sections: list[Section], start: int, end: int) -> Section:
     if best is None:
         raise ValueError(f"span [{start}, {end}) lies outside every section")
     return best
+
+
+# A window is credited to a section it overlaps by at least this many characters, or that it
+# contains completely. Big enough that a window touching only a heading line or a sentence of a
+# neighbouring section is not credited with it; small enough that short sections are reachable.
+MIN_CREDIT_CHARS = 100
+
+
+def credited_sections(
+    sections: list[Section], start: int, end: int, min_chars: int = MIN_CREDIT_CHARS
+) -> list[Section]:
+    """Sections that ``[start, end)`` is credited to, largest overlap first (ties: earliest).
+
+    A section is credited when the span overlaps it by at least ``min(min_chars, len(section))``
+    characters, so a short section inside the span always counts. The section returned by
+    :func:`section_at` is always included, so the result is never empty.
+    """
+    primary = section_at(sections, start, end)
+    found: list[tuple[int, int, Section]] = []
+    for i, sec in enumerate(sections):
+        if sec.end <= start:
+            continue
+        if sec.start >= end:
+            break
+        overlap = min(sec.end, end) - max(sec.start, start)
+        if sec is primary or overlap >= min(min_chars, sec.end - sec.start):
+            found.append((-overlap, i, sec))
+    return [sec for _, _, sec in sorted(found, key=lambda t: (t[0], t[1]))]

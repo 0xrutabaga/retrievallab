@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from retrievallab.corpus import Document
-from retrievallab.sections import Section, section_at, split_sections
+from retrievallab.sections import Section, credited_sections, split_sections
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,11 +29,21 @@ class Chunk:
     text: str
     section: str
     section_title: str
+    # Every section this chunk is credited to during evaluation, ``section`` first. A
+    # SectionChunker chunk has exactly one; a fixed window has one per section it covers enough
+    # of (see sections.credited_sections).
+    credited: tuple[str, ...] = ()
 
     @property
     def passage_id(self) -> str:
-        """The labelled passage (RFC section) this chunk is credited to during evaluation."""
+        """The primary passage: the section this chunk overlaps most (used for citations)."""
         return f"{self.doc_id}#{self.section}"
+
+    @property
+    def passage_ids(self) -> tuple[str, ...]:
+        """All passages credited to this chunk, largest overlap first."""
+        numbers = self.credited or (self.section,)
+        return tuple(f"{self.doc_id}#{n}" for n in numbers)
 
 
 class Chunker(Protocol):
@@ -42,7 +52,9 @@ class Chunker(Protocol):
     def chunk(self, doc: Document) -> list[Chunk]: ...
 
 
-def _make_chunk(doc: Document, start: int, end: int, sec: Section) -> Chunk:
+def _make_chunk(
+    doc: Document, start: int, end: int, sec: Section, credited: tuple[str, ...] = ()
+) -> Chunk:
     return Chunk(
         chunk_id=f"{doc.doc_id}@{start}-{end}",
         doc_id=doc.doc_id,
@@ -51,6 +63,7 @@ def _make_chunk(doc: Document, start: int, end: int, sec: Section) -> Chunk:
         text=doc.text[start:end],
         section=sec.number,
         section_title=sec.title,
+        credited=credited or (sec.number,),
     )
 
 
@@ -91,7 +104,9 @@ def _fixed_spans(
 class FixedSizeChunker:
     """Sliding windows of about ``size`` characters with ``overlap`` characters shared.
 
-    Windows ignore document structure; each chunk is credited to the section it overlaps most.
+    Windows ignore document structure. A window cites the section it overlaps most and is
+    credited, for scoring, to every section it covers enough of (``credited_sections``), so a
+    short labelled section inside a window is reachable.
     """
 
     def __init__(self, size: int = 1000, overlap: int = 200) -> None:
@@ -105,10 +120,11 @@ class FixedSizeChunker:
 
     def chunk(self, doc: Document) -> list[Chunk]:
         sections = split_sections(doc)
-        return [
-            _make_chunk(doc, s, e, section_at(sections, s, e))
-            for s, e in _fixed_spans(doc.text, 0, len(doc.text), self.size, self.overlap)
-        ]
+        chunks = []
+        for s, e in _fixed_spans(doc.text, 0, len(doc.text), self.size, self.overlap):
+            credited = credited_sections(sections, s, e)
+            chunks.append(_make_chunk(doc, s, e, credited[0], tuple(c.number for c in credited)))
+        return chunks
 
 
 def _paragraph_starts(text: str, start: int, end: int) -> list[int]:

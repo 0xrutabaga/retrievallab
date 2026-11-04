@@ -9,7 +9,7 @@ import pytest
 from conftest import make_doc
 
 from retrievallab.corpus import Document
-from retrievallab.sections import section_at, split_sections
+from retrievallab.sections import MIN_CREDIT_CHARS, credited_sections, section_at, split_sections
 
 _TOC_ENTRY = re.compile(r"^\s{2,}(?:Appendix\s+)?(\d+(?:\.\d+)*|[A-Z](?:\.\d+)*)\.\s+\S")
 
@@ -91,3 +91,22 @@ def test_section_at_picks_largest_overlap() -> None:
     assert section_at(sections, s1.end - 3, s1.end + 3).number == "1"
     with pytest.raises(ValueError):
         section_at(sections, len(text) + 1, len(text) + 2)
+
+
+def test_credited_sections_include_short_contained_sections() -> None:
+    # Section 1 is long, section 2 is short (well under MIN_CREDIT_CHARS), section 3 is long.
+    text = "1.  A\n" + "a " * 200 + "\n2.  B\n" + "b " * 10 + "\n3.  C\n" + "c " * 200 + "\n"
+    sections = split_sections(make_doc(text))
+    _, s2, s3 = sections
+    # A window over the end of 1, all of 2 and 50 chars of 3: credited to 1 (largest) and 2
+    # (fully contained) but not 3 (50 < 100 characters of a long section).
+    start, end = s2.start - 150, s3.start + 50
+    numbers = [s.number for s in credited_sections(sections, start, end)]
+    assert numbers == ["1", "2"]
+    assert credited_sections(sections, start, end)[0] == section_at(sections, start, end)
+    # Overlapping 120 chars of section 3 is enough.
+    assert [s.number for s in credited_sections(sections, s2.start, s3.start + 120)] == [
+        "3",
+        "2",
+    ]
+    assert MIN_CREDIT_CHARS == 100

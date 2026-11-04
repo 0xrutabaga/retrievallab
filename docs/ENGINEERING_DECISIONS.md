@@ -5,17 +5,38 @@ function names refer to `src/retrievallab/`.
 
 ## 1. Evaluate passages, not chunks
 
-**Decision.** Labels name RFC sections (`rfc6749#4.1.2`). `evaluate.evaluate_run` maps each
-retrieved chunk to `Chunk.passage_id` and `evaluate.ranked_passages` keeps the first
-occurrence of each passage before scoring.
+**Decision.** Labels name RFC sections (`rfc6749#4.1.2`). `evaluate.evaluate_run` expands
+each retrieved chunk into the passages it is credited to (`Chunk.passage_ids`), and
+`evaluate.ranked_passages` keeps the first occurrence of each passage before scoring. A
+section chunk is credited to its own section. A fixed window is credited to every section it
+overlaps by at least `MIN_CREDIT_CHARS` (100) characters or contains completely
+(`sections.credited_sections`), largest overlap first, and each credited passage takes its own
+rank.
 
 **Why.** Chunk-level labels would have to be rewritten for every chunker and could not
 compare a 1000-character window with a section-aligned chunk. Section ids are stable under any
 chunking and are what a reader would cite.
 
 **Cost.** A long section counts as found if any chunk of it ranks, even one that does not hold
-the answering sentence. A fixed window that straddles two sections is credited to one only
-(`sections.section_at`, largest overlap, ties to the earlier section).
+the answering sentence.
+
+**History.** The first version credited a window only to the section it overlapped most
+(`sections.section_at`). An independent review showed that this made any labelled section
+shorter than about half a window unreachable: 13 labels (in 13 queries, for example
+`rfc9700#2.2.2`, `rfc8705#6.5`, `rfc9126#7.1`) could never be retrieved by a `fixed` run, and
+the "fixed windows lose Recall@10" verdict (-0.079 [-0.134, -0.028]) was largely that
+artifact. With multi-section credit all 152 labels are reachable under both default chunkers,
+the report prints reachable labels per run, and
+`tests/test_eval_e2e.py::test_every_labelled_passage_is_reachable` keeps it that way. BM25's
+fixed-versus-section Recall@10 difference is now -0.050 [-0.112, +0.007], not significant.
+
+**Fairness between chunkers.** Crediting a window with every section it touches would let a
+large window collect several passages at one rank. Two rules limit that: each credited
+passage occupies its own position in the ranked list, so a window credited to three sections
+uses three of the ten slots in nDCG@10 and P@5 just as three separate chunks would; and a
+section only counts if the window covers 100 characters of it or all of it, so grazing a
+neighbour's heading line earns nothing. The threshold is a judgement call; scoring labelled
+character spans would remove it at the cost of span-level labels.
 
 ## 2. Sections from RFC layout rules, checked against the table of contents
 
@@ -91,8 +112,11 @@ where fusion would be expected to help, and it needs the optional extra.
 
 **Decision.** `metrics.Bootstrap` draws 10,000 resamples of query indices once from
 `random.Random(seed)` and reuses them for every interval in a report. Comparisons use the
-paired difference per query (`Bootstrap.paired`). A difference is called better or worse only
-when its 95% percentile interval excludes zero (`evaluate.Comparison.verdict`).
+paired difference per query (`Bootstrap.paired`). The report gives two verdicts: uncorrected
+(`evaluate.Comparison.verdict`, the 95% percentile interval excludes zero) and Holm-corrected
+(`evaluate.Comparison.holm_verdict`), from two-sided bootstrap p-values
+(`Bootstrap.p_value`) adjusted by `metrics.holm_adjust` over all comparisons in the report.
+The README quotes the Holm column.
 
 **Why.** Per-query nDCG is bounded and skewed, so a normal approximation is doubtful at this
 size. Pairing removes query difficulty, which dominates variance: the intervals on single runs
@@ -100,8 +124,11 @@ are about +/- 0.07, while a paired difference between two similar runs (BM25 and
 section chunks) has an interval about +/- 0.016 wide on each side. Sharing resamples across
 runs keeps the report deterministic and the comparisons consistent.
 
-**Cost.** Percentile intervals undercover slightly at small n; no correction is made for
-running 15 comparisons. Both are stated in the report.
+**Cost.** Percentile intervals undercover slightly at small n. Holm is conservative, so with
+71 queries small real differences will be reported as not significant. Bootstrap p-values have
+a resolution of 1/10,000, so the smallest are printed as "<0.0001". An earlier report used
+only the uncorrected verdict, under which hybrid's MRR@10 (-0.017 [-0.035, -0.001]) looked
+"worse"; it does not survive Holm (adjusted p = 0.36).
 
 ## 8. Reports are deterministic and CI enforces it
 
