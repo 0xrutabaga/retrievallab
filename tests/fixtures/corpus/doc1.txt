@@ -1,0 +1,25 @@
+Tiny Fixture Document One
+
+Abstract
+
+   A small document used by the test suite. It is written in the layout
+   of an RFC so that the section parser sees real headings.
+
+1.  Introduction
+
+   Gardens need water. A garden that receives no water will wilt within
+   a few days in summer.
+
+1.1.  Watering Schedule
+
+   Water tomatoes every morning. Water cactus plants once a month.
+
+   Never water during the hottest hour of the day.
+
+2.  Soil
+
+   Compost improves soil structure and feeds earthworms.
+
+Authors' Addresses
+
+   Example Author

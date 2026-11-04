@@ -1,0 +1,4 @@
+{"qid": "f1", "query": "how often should tomatoes be watered", "relevant": {"doc1#1.1": 2, "doc1#1": 1}, "evidence": {"doc1#1.1": "Water tomatoes every morning", "doc1#1": "Gardens need water"}}
+{"qid": "f2", "query": "oil for a bicycle chain", "relevant": {"doc2#1": 2}, "evidence": {"doc2#1": "chain needs oil"}}
+{"qid": "f3", "query": "punctures from low tyre pressure", "relevant": {"doc2#2": 2}, "evidence": {"doc2#2": "Low pressure causes punctures"}}
+{"qid": "f4", "query": "which pump is quicker", "relevant": {"doc2#A.1": 2, "doc2#A": 1}, "evidence": {"doc2#A.1": "Floor pumps are faster", "doc2#A": "A pump and a chain tool"}}
