@@ -1,0 +1,19 @@
+{
+  "description": "Two tiny RFC-layout documents written for the test suite.",
+  "documents": [
+    {
+      "doc_id": "doc1",
+      "file": "doc1.txt",
+      "sha256": "8376c94042d967d1ead7561f31f5e4615fa53bc3109eba4f7244b40d3cac78d3",
+      "title": "Tiny Fixture Document One",
+      "url": "https://example.invalid/doc1.txt"
+    },
+    {
+      "doc_id": "doc2",
+      "file": "doc2.txt",
+      "sha256": "a506ffdb08b8780e343f972701c5abeca760d115913ae5874bab39d8386a2f3d",
+      "title": "Tiny Fixture Document Two",
+      "url": "https://example.invalid/doc2.txt"
+    }
+  ]
+}

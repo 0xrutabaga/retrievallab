@@ -1,0 +1,18 @@
+Tiny Fixture Document Two
+
+1.  Bicycles
+
+   A bicycle chain needs oil every few hundred kilometres. A dry chain
+   wears out the cassette.
+
+2.  Tyres
+
+   Check tyre pressure weekly. Low pressure causes punctures.
+
+Appendix A.  Tools
+
+   A pump and a chain tool fit in a saddle bag.
+
+A.1.  Pump Types
+
+   Floor pumps are faster than hand pumps.
