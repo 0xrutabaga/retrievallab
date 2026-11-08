@@ -24,11 +24,13 @@ download models; that is listed as future work, not claimed.
 ## 2. "You wrote the queries, the labels and the system. Why should I believe any of the numbers?"
 
 The absolute numbers should be read with caution, and `docs/LABELS.md` says why: one annotator,
-who is the author; questions written by reading the corpus, which favours lexical methods;
+an AI model (Claude) that also wrote the system; questions written by reading the corpus, which favours lexical methods;
 labels not exhaustive. What the design does to limit the damage:
 
-- Labels were written before the first retrieval run (commit `8815782` precedes the eval
-  code commit `623f704`), so they were not fitted to any method's output.
+- Labels were committed before the evaluation code (`d5a0d44` is an ancestor of `4ac4d25`), and
+  the annotator's own report is that they were written before any retrieval run. Git shows only the
+  commit order: these commits were made in one batch within a second, so it cannot prove when
+  the labels were written (`docs/LABELS.md` says so).
 - Each label carries an evidence quote that `qrels.py::validate_queries` must find in the
   passage, so a label cannot silently point at the wrong section.
 - The only post-hoc change (pass 2) re-judged five zero-recall queries against a pool drawn

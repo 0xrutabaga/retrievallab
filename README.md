@@ -203,8 +203,8 @@ key.
 
 ## Limitations
 
-- **One annotator, who also wrote the system.** Queries and labels were written by the author
-  of this code, against the RFC text, before the first evaluation run; five zero-recall queries
+- **One annotator, an AI model (Claude), which also wrote the system.** Queries and labels were
+  written by that model, against the RFC text, before the first evaluation run; five zero-recall queries
   were then re-judged against pooled results (`docs/LABELS.md`). Labels are not exhaustive: an
   unlabelled passage that answers a query counts as a miss, which penalises every method, and
   most of all the ones that find unusual but correct passages.

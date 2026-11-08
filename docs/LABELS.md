@@ -27,7 +27,7 @@ is boilerplate that is never indexed. This runs in the test suite and in CI
 
 ## Procedure
 
-Pass 1 (commit `8815782`, before any retrieval run):
+Pass 1 (commit `d5a0d44`, before any retrieval run):
 
 1. Listed every section of the corpus with its title and length (`split_sections`).
 2. Wrote 71 questions an engineer implementing OAuth might ask, spread over all 18 RFCs. Most
@@ -38,7 +38,7 @@ Pass 1 (commit `8815782`, before any retrieval run):
    assigned a grade.
 4. Copied an evidence quote for each label and ran the validator until every quote resolved.
 
-Pass 2 (commit `32737f7`, after the first evaluation run):
+Pass 2 (commit `95a9c05`, after the first evaluation run):
 
 The first run left five queries with Recall@10 = 0 in every run (`q001`, `q018`, `q023`,
 `q032`, `q053`). For those five only, the top five passages from each of the six default runs
@@ -52,17 +52,30 @@ numbers:
 
 ```bash
 mkdir -p reports/tmp
-git show 8815782:data/queries.jsonl > reports/tmp/queries-pass1.jsonl
+git show d5a0d44:data/queries.jsonl > reports/tmp/queries-pass1.jsonl
 uv run retrievallab eval --queries reports/tmp/queries-pass1.jsonl --out reports/tmp
 ```
 
 which gives, for example, nDCG@10 of 0.598 for `bm25/section` and 0.584 for `hybrid/section`,
 against 0.602 and 0.589 with the current labels.
 
+## What the git history does and does not show
+
+The labels commit `d5a0d44` is an ancestor of the evaluation code commit `4ac4d25`, and it
+contains no evaluation code or reports. That records the order in which the work was committed.
+It is not independent proof of when the labels were written: these commits were created in one
+batch, and `d5a0d44`, `4ac4d25` and `95a9c05` carry the same timestamp to the second. The
+retrievers were also already committed before the labels (`ced824e`). The claim that labels
+preceded the first retrieval run rests on the annotator's own report of the process.
+
+The commit ids above changed in a history rewrite on 2026-11-09 that altered only commit
+messages; see [HISTORY_MIGRATION.md](HISTORY_MIGRATION.md).
+
 ## Known limits
 
-- **Single annotator, who is also the system's author.** No second judge, so no agreement
-  figure. Grade boundaries (1 versus 2) are one person's judgement.
+- **Single annotator, an AI model (Claude), which also wrote the system.** No human had reviewed
+  the individual labels when this was written. No second judge, so no agreement
+  figure. Grade boundaries (1 versus 2) are one model's judgement.
 - **Questions came from reading the corpus.** Even paraphrased, they lean on the RFCs'
   vocabulary, which favours lexical retrievers over dense ones. Questions from real users would
   be phrased differently.
